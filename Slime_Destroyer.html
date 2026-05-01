@@ -1,0 +1,616 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Истребитель слаймов</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323:wght@400&display=swap');
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg:     #0d0d18;
+  --panel:  #13132a;
+  --border: #2a2a4a;
+  --gold:   #e8c84a;
+  --red:    #d94545;
+  --green:  #3dba6e;
+  --blue:   #3d8eba;
+  --purple: #8b4dba;
+  --text:   #c8c8e0;
+  --muted:  #666688;
+}
+
+body {
+  font-family: 'VT323', monospace;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding: 14px 12px 32px;
+  background-image:
+    radial-gradient(ellipse at 20% 0%,   rgba(60,40,120,0.18) 0%, transparent 60%),
+    radial-gradient(ellipse at 80% 100%, rgba(40,10,80,0.15)  0%, transparent 60%);
+}
+
+.game { width: 100%; max-width: 420px; display: flex; flex-direction: column; gap: 7px; }
+
+/* Header */
+.header {
+  font-family: 'Press Start 2P', monospace;
+  font-size: 0.58em;
+  color: var(--gold);
+  text-align: center;
+  letter-spacing: 1px;
+  text-shadow: 0 0 12px rgba(232,200,74,0.5);
+}
+.room-badge {
+  display: inline-block;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  padding: 3px 10px;
+  border-radius: 4px;
+  font-family: 'VT323', monospace;
+  font-size: 1.4em;
+  color: var(--muted);
+  margin-top: 5px;
+  letter-spacing: 0;
+}
+
+/* Cards */
+.card {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 10px 12px;
+  position: relative;
+  overflow: hidden;
+}
+.card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 2px;
+}
+.card.enemy::before  { background: var(--red); }
+.card.player::before { background: var(--green); }
+
+.card-name { font-size: 0.82em; color: var(--muted); margin-bottom: 6px; }
+
+.hp-track {
+  background: #0a0a16;
+  border-radius: 3px;
+  height: 6px;
+  margin-bottom: 6px;
+  overflow: hidden;
+}
+.hp-fill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.3s ease;
+}
+.hp-fill.green  { background: var(--green); }
+.hp-fill.yellow { background: #c8a030; }
+.hp-fill.red    { background: var(--red); }
+
+.stat-row { font-size: 1.05em; line-height: 1.6; color: var(--text); }
+
+/* Intent */
+.intent {
+  background: var(--panel);
+  border: 1px solid var(--gold);
+  border-radius: 6px;
+  padding: 7px 10px;
+  font-size: 1em;
+  color: var(--gold);
+  text-align: center;
+  text-shadow: 0 0 8px rgba(232,200,74,0.3);
+}
+
+/* Turn info */
+.turn-info {
+  text-align: center;
+  font-size: 1em;
+  color: var(--muted);
+  min-height: 1.2em;
+}
+
+/* Ability buttons */
+.btn-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+.btn {
+  padding: 9px 6px 8px;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  cursor: pointer;
+  font-family: 'VT323', monospace;
+  font-size: 1em;
+  line-height: 1.35;
+  text-align: center;
+  transition: box-shadow 0.12s, transform 0.08s;
+  color: #fff;
+  position: relative;
+  overflow: hidden;
+}
+.btn::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: rgba(255,255,255,0);
+  transition: background 0.1s;
+}
+.btn:not(:disabled):hover::after { background: rgba(255,255,255,0.07); }
+.btn:not(:disabled):active { transform: scale(0.96); }
+.btn:disabled { opacity: 0.3; cursor: default; }
+
+.btn-slash  { background: #5a1a1a; border-color: var(--red); }
+.btn-heal   { background: #1a3d2a; border-color: var(--green); }
+.btn-shield { background: #1a2e45; border-color: var(--blue); }
+.btn-buff   { background: #2e1a45; border-color: var(--purple); }
+
+.btn-slash:not(:disabled):hover  { box-shadow: 0 0 8px rgba(217,69,69,0.4); }
+.btn-heal:not(:disabled):hover   { box-shadow: 0 0 8px rgba(61,186,110,0.4); }
+.btn-shield:not(:disabled):hover { box-shadow: 0 0 8px rgba(61,142,186,0.4); }
+.btn-buff:not(:disabled):hover   { box-shadow: 0 0 8px rgba(139,77,186,0.4); }
+
+.btn-icon  { font-size: 1.4em; display: block; }
+.btn-label { font-size: 0.95em; display: block; }
+.btn-desc  { font-size: 0.78em; color: rgba(255,255,255,0.55); display: block; }
+
+/* Next-turn button */
+.btn-next {
+  width: 100%;
+  padding: 9px;
+  background: transparent;
+  border: 1px solid var(--gold);
+  border-radius: 5px;
+  color: var(--gold);
+  font-family: 'VT323', monospace;
+  font-size: 1em;
+  cursor: pointer;
+  transition: background 0.12s, box-shadow 0.12s;
+  text-shadow: 0 0 6px rgba(232,200,74,0.3);
+}
+.btn-next:not(:disabled):hover {
+  background: rgba(232,200,74,0.1);
+  box-shadow: 0 0 8px rgba(232,200,74,0.3);
+}
+.btn-next:disabled { opacity: 0.3; cursor: default; }
+
+/* Log */
+.log {
+  background: #08080f;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  padding: 8px 10px;
+  max-height: 110px;
+  overflow-y: auto;
+  font-size: 0.9em;
+  color: var(--muted);
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+}
+.log p { margin: 1px 0; line-height: 1.5; }
+.log p:last-child { color: var(--text); }
+.log .sep { color: #2a2a4a; }
+
+/* Overlay */
+.overlay {
+  position: fixed; inset: 0;
+  background: rgba(5,5,15,0.92);
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  gap: 14px; z-index: 100;
+  backdrop-filter: blur(2px);
+}
+.overlay-title {
+  font-family: 'Press Start 2P', monospace;
+  font-size: 1em;
+  color: var(--gold);
+  text-shadow: 0 0 20px rgba(232,200,74,0.6);
+  text-align: center;
+  line-height: 1.7;
+}
+.overlay-sub { font-size: 1.1em; color: var(--muted); }
+.btn-restart {
+  padding: 10px 24px;
+  border: 1px solid var(--gold);
+  background: transparent;
+  color: var(--gold);
+  font-family: 'VT323', monospace;
+  font-size: 1.2em;
+  cursor: pointer;
+  border-radius: 5px;
+  transition: background 0.12s, box-shadow 0.12s;
+}
+.btn-restart:hover {
+  background: rgba(232,200,74,0.1);
+  box-shadow: 0 0 12px rgba(232,200,74,0.4);
+}
+
+/* Credits */
+.credits-list {
+  text-align: left;
+  font-size: 0.95em;
+  color: var(--text);
+  line-height: 2;
+  max-height: 55vh;
+  overflow-y: auto;
+  padding: 0 8px;
+  width: 100%;
+  max-width: 340px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+}
+.credits-list .role { color: var(--muted); font-size: 0.85em; display: block; }
+.credits-list .name { color: var(--gold); }
+.credits-row { margin-bottom: 6px; }
+</style>
+</head>
+<body>
+<div class="game">
+
+  <div class="header">
+    ☠ Истребитель Слаймов ☠
+    <div class="room-badge" id="room-badge">КОМНАТА 1 / 20</div>
+  </div>
+
+  <!-- Враг — сверху -->
+  <div class="card enemy">
+    <div class="card-name" id="e-name">😈 СЛАЙМ</div>
+    <div class="hp-track"><div class="hp-fill red" id="e-bar" style="width:100%"></div></div>
+    <div class="stat-row" id="e-stats">❤️ ? &nbsp;🛡️0</div>
+  </div>
+
+  <div class="intent" id="intent">🤔 ...</div>
+  
+
+<div class="log" id="log"></div>
+
+  <div class="btn-grid">
+    <button class="btn btn-slash"  id="b-slash"  onclick="act('slash')">
+      <span class="btn-icon">⚔️</span>
+      <span class="btn-label">АТАКА</span>
+      <span class="btn-desc">3 урона врагу</span>
+    </button>
+    <button class="btn btn-heal"   id="b-heal"   onclick="act('heal')">
+      <span class="btn-icon">💚</span>
+      <span class="btn-label">ЛЕЧЕНИЕ</span>
+      <span class="btn-desc">+1 ❤️ себе</span>
+    </button>
+    <button class="btn btn-shield" id="b-shield" onclick="act('shield')">
+      <span class="btn-icon">🛡️</span>
+      <span class="btn-label">ЩИТ</span>
+      <span class="btn-desc">+3 брони себе</span>
+    </button>
+    <button class="btn btn-buff"   id="b-buff"   onclick="act('buff')">
+      <span class="btn-icon">⚡</span>
+      <span class="btn-label">УСИЛЕНИЕ</span>
+      <span class="btn-desc">+1 атаки до конца боя</span>
+    </button>
+  </div>
+
+<div class="turn-info" id="turn-info"></div>
+
+  <button class="btn-next" id="b-next" onclick="nextTurn()" disabled>⏩ СЛЕДУЮЩИЙ ХОД</button>
+
+  
+
+  <!-- Игрок — снизу -->
+  <div class="card player">
+    <div class="card-name">🧙 ИГРОК</div>
+    <div class="hp-track"><div class="hp-fill green" id="p-bar" style="width:100%"></div></div>
+    <div class="stat-row" id="p-stats">❤️ 10/10 &nbsp;🛡️0 &nbsp;⚡+0</div>
+  </div>
+
+</div>
+<script>
+// ── State ──────────────────────────────────────────────────────────────
+// phases: 'player' | 'resolved' | 'next' | 'win' | 'over'
+const S = {
+  room: 1,
+  turns: 0,
+  p: { hp: 10, maxHp: 10, armor: 0, enh: 0 },
+  e: { hp: 0, maxHp: 0, armor: 0, intent: '' },
+  actLeft: 2,
+  phase: 'player',
+};
+const logs = [];
+let overlayFn = null;
+
+// ── Enemy helpers ──────────────────────────────────────────────────────
+function eStats(room) {
+  const tier = Math.floor((room - 1) / 4);
+  if (room === 20)     return { hp: room+5, dmg: 1 + tier, blk: 4 + tier };
+  return { hp: room, dmg: 1 + tier, blk: 2 + tier };
+}
+
+function enemyName(room) {
+  if (room === 1)  return '😈 СЛАЙМ';
+  if (room < 10)   return '😈 СТ. БРАТ СЛАЙМА';
+  if (room < 15)   return '👹 ДЯДЯ СЛАЙМА';
+  if (room < 20)   return '👴 ДЕДУШКА СЛАЙМА';
+  return '🌍ПРАРОДИТЕЛЬ СЛАЙМОВ';
+}
+
+function abilityPool(room, eArmor) {
+  const pool = ['укусить', 'блок'];
+  if (room >= 10) pool.push('растворить');
+  if (room >= 15 && eArmor > 9) pool.push('взрыв');
+  return pool;
+}
+
+function randIntent(room, eArmor) {
+  const pool = abilityPool(room, eArmor);
+  return pool[Math.floor(Math.random() * pool.length)];
+}
+
+function intentText(intent, es, eArmor) {
+  switch (intent) {
+    case 'укусить':   return `😤 Собирается «Укусить» — ${es.dmg} урона`;
+    case 'блок':      return `🛡️ Собирается «Заблокироваться» — +${es.blk} брони`;
+    case 'растворить':return `🩸 Собирается «Растворить» — ${Math.floor(es.dmg / 2)} урона (игн. броню)`;
+    case 'взрыв':     return `💥 Собирается «Взорваться» — ${Math.floor(eArmor)} урона (= кол-во брони)`;
+  }
+}
+
+// ── Combat helpers ─────────────────────────────────────────────────────
+function addLog(msg) { logs.push(msg); if (logs.length > 60) logs.shift(); }
+
+function hitEnemy(dmg) {
+  const abs = Math.min(S.e.armor, dmg);
+  S.e.armor = Math.max(0, S.e.armor - dmg);
+  S.e.hp    = Math.max(0, S.e.hp - (dmg - abs));
+  return abs;
+}
+function hitPlayer(dmg) {
+  const abs = Math.min(S.p.armor, dmg);
+  S.p.armor = Math.max(0, S.p.armor - dmg);
+  S.p.hp    = Math.max(0, S.p.hp - (dmg - abs));
+  return abs;
+}
+function hitPlayerRaw(dmg) {
+  S.p.hp = Math.max(0, S.p.hp - dmg);
+}
+
+// ── Room start ─────────────────────────────────────────────────────────
+function startRoom() {
+  const es = eStats(S.room);
+  S.e = { hp: es.hp, maxHp: es.hp, armor: 0, intent: randIntent(S.room, 0) };
+  S.p.armor = 0;
+  S.p.enh   = 0;
+  S.actLeft = 2;
+  S.phase   = 'player';
+  addLog(`🚪 КОМНАТА ${S.room} | HP:${es.hp} урон:${es.dmg} блок:${es.blk}`);
+  render();
+}
+
+// ── Player action ──────────────────────────────────────────────────────
+function act(ability) {
+  if (S.phase !== 'player' || S.actLeft <= 0) return;
+
+  switch (ability) {
+    case 'slash': {
+      const dmg = 3 + S.p.enh;
+      const abs = hitEnemy(dmg);
+      addLog(`⚔️ Атакуешь: ${dmg} урона${abs ? ` (${abs} броня)` : ''} → враг ${S.e.hp}/${S.e.maxHp}❤️`);
+      break;
+    }
+    case 'heal': {
+      S.p.hp = Math.min(S.p.maxHp, S.p.hp + 1);
+      addLog(`💚 Лечение → ты ${S.p.hp}/${S.p.maxHp}❤️`);
+      break;
+    }
+    case 'shield': {
+      S.p.armor += 3;
+      addLog(`🛡️ Щит → твоя броня: ${S.p.armor}`);
+      break;
+    }
+    case 'buff': {
+      S.p.enh += 1;
+      addLog(`⚡ Усиление → атаки теперь +${S.p.enh}`);
+      break;
+    }
+  }
+
+  S.actLeft--;
+
+  if (S.e.hp <= 0) {
+    addLog(`💀 Враг побеждён!`);
+    S.phase = S.room >= 20 ? 'win' : 'next';
+    render();
+    return;
+  }
+
+  if (S.actLeft <= 0) {
+    executeEnemyTurn();
+  }
+
+  render();
+}
+
+// ── Enemy acts immediately after player's last action ──────────────────
+function executeEnemyTurn() {
+  S.turns++;
+  const es     = eStats(S.room);
+  const intent = S.e.intent;
+
+  switch (intent) {
+    case 'укусить': {
+      const abs = hitPlayer(es.dmg);
+      addLog(`😈 Враг укусил: ${es.dmg} урона${abs ? ` (${abs} броня)` : ''} → ты ${S.p.hp}/${S.p.maxHp}❤️`);
+      break;
+    }
+    case 'блок': {
+      S.e.armor += es.blk;
+      addLog(`🛡️ Враг блокирует → броня врага: ${S.e.armor}`);
+      break;
+    }
+    case 'растворить': {
+      const dmg = Math.floor(es.dmg / 2);
+      hitPlayerRaw(dmg);
+      addLog(`🩸 Враг растворяет (игн. броню): ${dmg} урона → ты ${S.p.hp}/${S.p.maxHp}❤️`);
+      break;
+    }
+    case 'взрыв': {
+      const dmg = Math.floor(S.e.armor);
+      S.e.armor = 0;
+      hitPlayerRaw(dmg);
+      addLog(`💥 Взрыв! Враг теряет броню, наносит ${dmg} урона → ты ${S.p.hp}/${S.p.maxHp}❤️`);
+      break;
+    }
+  }
+
+  if (S.p.hp <= 0) {
+    addLog('💀 Ты пал...');
+    S.phase = 'over';
+    return;
+  }
+
+  S.e.intent = randIntent(S.room, S.e.armor);
+  S.phase = 'resolved';
+}
+
+// ── "Следующий ход" ────────────────────────────────────────────────────
+function nextTurn() {
+  if (S.phase !== 'resolved') return;
+  S.p.armor = 0;
+  S.actLeft = 2;
+  S.phase   = 'player';
+  addLog('── новый ход ──');
+  render();
+}
+
+// ── Render ─────────────────────────────────────────────────────────────
+function render() {
+  const p = S.p, e = S.e;
+
+  document.querySelector('#b-slash .btn-desc').textContent = `${3 + S.p.enh} урона врагу`;
+
+  document.getElementById('room-badge').textContent = `КОМНАТА ${S.room} / 20`;
+  document.getElementById('e-name').textContent = enemyName(S.room);
+
+  const pPct = p.hp / p.maxHp;
+  const pBar = document.getElementById('p-bar');
+  pBar.style.width = `${Math.max(0, pPct * 100)}%`;
+  pBar.className = 'hp-fill ' + (pPct > 0.6 ? 'green' : pPct > 0.3 ? 'yellow' : 'red');
+  document.getElementById('p-stats').innerHTML =
+    `❤️ ${p.hp}/${p.maxHp} &nbsp;🛡️${p.armor} &nbsp;⚡+${p.enh}`;
+
+  const ePct = e.hp / e.maxHp;
+  document.getElementById('e-bar').style.width = `${Math.max(0, ePct * 100)}%`;
+  document.getElementById('e-stats').innerHTML = `❤️ ${e.hp}/${e.maxHp} &nbsp;🛡️${e.armor}`;
+
+  const es = eStats(S.room);
+  document.getElementById('intent').textContent =
+    intentText(e.intent, es, e.armor);
+
+  const canAct = S.phase === 'player';
+  ['slash','heal','shield','buff'].forEach(id =>
+    document.getElementById(`b-${id}`).disabled = !canAct
+  );
+  document.getElementById('b-next').disabled = S.phase !== 'resolved';
+
+  const ti = document.getElementById('turn-info');
+  if      (S.phase === 'player')   ti.textContent = `Действий: ${S.actLeft}`;
+  else if (S.phase === 'resolved') ti.textContent = 'Конец хода — враг уже действовал';
+  else                             ti.textContent = '';
+
+  const lb = document.getElementById('log');
+  lb.innerHTML = logs.map(l =>
+    l.startsWith('──') ? `<p class="sep">${l}</p>` : `<p>${l}</p>`
+  ).join('');
+  lb.scrollTop = lb.scrollHeight;
+
+  document.querySelector('.overlay')?.remove();
+  if (S.phase === 'next') {
+    showOverlay('🎉 ПОБЕДА!', `Комната ${S.room} пройдена`, 'ВПЕРЁД →',
+      () => { S.room++; startRoom(); });
+  } else if (S.phase === 'win') {
+    showWinOverlay();
+  } else if (S.phase === 'over') {
+    showOverlay('💀 ПОГИБЕЛЬ', 'Попробуй ещё раз', 'НАЧАТЬ СНАЧАЛА', restart);
+  }
+}
+
+function showOverlay(title, sub, btnLabel, fn) {
+  const el = document.createElement('div');
+  el.className = 'overlay';
+  el.innerHTML = `
+    <div class="overlay-title">${title}</div>
+    <div class="overlay-sub">${sub}</div>
+    <button class="btn-restart" onclick="(${fn.toString()})()">${btnLabel}</button>`;
+  document.body.appendChild(el);
+}
+
+function showWinOverlay() {
+  const el = document.createElement('div');
+  el.className = 'overlay';
+  el.innerHTML = `
+    <div class="overlay-title">🏆 ТЫ ПОБЕДИЛ!</div>
+    <div class="overlay-sub">Все 20 комнат позади!</div>
+    <div class="overlay-sub" style="color:var(--gold)">⏱ Ходов потрачено: ${S.turns}</div>
+    <button class="btn-restart" onclick="restart()">🔄 ИГРАТЬ СНОВА</button>
+    <button class="btn-restart" style="border-color:var(--purple);color:var(--purple)" onclick="showCredits()">🎬 ТИТРЫ</button>`;
+  document.body.appendChild(el);
+}
+
+function showCredits() {
+  document.querySelector('.overlay')?.remove();
+  const credits = [
+    { role: 'Геймдизайнер, нарративный директор, CEO:', name: 'DreamEaterAlex' },
+    { role: 'Ведущий программист:', name: 'Claude' },
+    { role: 'Баланс-дизайнер (попытка):', name: 'Claude' },
+    { role: 'UI/UX дизайнер:', name: 'Claude' },
+    { role: 'Автор механики «Взрыв»:', name: 'DreamEaterAlex' },
+    { role: 'Автор механики «Растворить»:', name: 'DreamEaterAlex' },
+    { role: 'Нарративный дизайнер (слово «Дедушка»):', name: 'DreamEaterAlex' },
+    { role: 'Редактор текста и вёрстки:', name: 'DreamEaterAlex' },
+    { role: 'Отдел QA (найдено багов: много):', name: 'DreamEaterAlex' },
+    { role: 'Отдел QA (баги починены: все):', name: 'Claude' },
+    { role: 'Копирайтер надписи «Попробуй ещё раз»:', name: 'Claude' },
+    { role: 'Душа компании:', name: 'DreamEaterAlex' },
+    { role: 'Логистика эмодзи:', name: 'Claude' },
+    { role: 'Генератор случайных чисел:', name: 'Math.random()' },
+    { role: 'Главный слайм:', name: '😈' },
+    { role: 'Дублёр главного слайма:', name: '😈😈' },
+    { role: 'Каскадёр (сцена взрыва):', name: '💥' },
+    { role: 'Продюсер:', name: 'DreamEaterAlex' },
+    { role: 'Исполнительный продюсер:', name: 'DreamEaterAlex' },
+    { role: 'Тот кто в итоге всё решает:', name: 'DreamEaterAlex' },
+    { role: 'Тот кто делает что скажут:', name: 'Claude' },
+    { role: 'Игроки:', name: 'Вы' },
+    { role: ' ', name: 'Спасибо за игру!' },
+  ];
+  const rows = credits.map(c =>
+    `<div class="credits-row"><span class="role">${c.role}</span><span class="name">${c.name}</span></div>`
+  ).join('');
+  const el = document.createElement('div');
+  el.className = 'overlay';
+  el.innerHTML = `
+    <div class="overlay-title" style="font-size:1em">🎬 ТИТРЫ</div>
+    <div class="credits-list">${rows}</div>
+    <button class="btn-restart" onclick="restart()">🔄 НАЧАТЬ СНАЧАЛА</button>`;
+  document.body.appendChild(el);
+}
+
+function restart() {
+  S.room  = 1;
+  S.turns = 0;
+  S.p     = { hp: 10, maxHp: 10, armor: 0, enh: 0 };
+  S.phase = 'player';
+  logs.length = 0;
+  document.querySelector('.overlay')?.remove();
+  startRoom();
+}
+
+startRoom();
+</script>
+</body>
+</html>
