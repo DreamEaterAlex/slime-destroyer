@@ -354,7 +354,7 @@ function randIntent(room, eArmor) {
 function intentText(intent, es, eArmor) {
   switch (intent) {
     case 'укусить':   return `😤 Собирается «Укусить» — ${es.dmg} урона`;
-    case 'блок':      return `🛡️ Собирается «Заблокировать» — +${es.blk} брони`;
+    case 'блок':      return `🛡️ Собирается «Укрепиться» — +${es.blk} брони`;
     case 'растворить':return `🩸 Собирается «Растворить» — ${Math.floor(es.dmg / 2)} урона (игн. броню)`;
     case 'взрыв':     return `💥 Собирается «Взорваться» — ${Math.floor(eArmor)} урона (= кол-во брони)`;
   }
